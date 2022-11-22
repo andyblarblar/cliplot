@@ -1,0 +1,10 @@
+[package]
+name = "cliplot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+plotters-iced = "^0.4"
+plotters = "^0.3"
+iced = { version = "0.5", features = ["canvas", "tokio"] }
+chrono = "0.4.23"
