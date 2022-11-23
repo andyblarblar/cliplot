@@ -23,6 +23,7 @@ pub struct Data {
 ///
 /// # Assumptions
 /// - Regex matchers can do anything, but must have a single capture group who's matching text must be convertable to a float.
+/// Its suggested to use delimiters, else the number can get split over a buffer divide.
 pub struct Config {
     /// Regex expression for each channel, ordered by index
     pub matchers: Vec<Regex>,
@@ -30,10 +31,10 @@ pub struct Config {
 }
 
 impl Default for Config {
-    /// Crates a config with a single channel, where that single channel just matches literally every
-    /// float.
+    /// Crates a config with a single channel, where that single channel just matches a float deliminated
+    /// by $.
     fn default() -> Self {
-        let matchers = vec![Regex::new(r"(\d*)").unwrap()];
+        let matchers = vec![Regex::new(r"\$(\d*)\$").unwrap()];
         Config { matchers }
     }
 }
@@ -41,7 +42,7 @@ impl Default for Config {
 /// State machine for the extraction stream
 enum State {
     Starting(Arc<Config>),
-    Working(Stdin, Arc<Config>),
+    Working(Stdin, Arc<Config>, String),
 }
 
 /// Subscription that extracts data from stdin using the configured Regex matchers.
@@ -56,39 +57,68 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                 State::Starting(arc_config) => {
                     let stin = stdin();
 
-                    (None, State::Working(stin, arc_config))
+                    (None, State::Working(stin, arc_config, String::new()))
                 }
-                State::Working(mut stin, config) => {
+                State::Working(mut stin, config, mut working_str) => {
                     // Read chunks from stdin
-                    let mut buff = [0u8; 11000]; //TODO store the buffer in front of the furthest match, to avoid cutting off data. Linked list?
+                    let mut buff = [0u8; 512];
                     stin.read_exact(&mut buff).await.unwrap();
 
                     let done_time = Utc::now();
 
+                    // Extend working string
                     let str = String::from_utf8_lossy(&buff);
+                    working_str.push_str(&str);
 
                     // Batch all readings from each chunk into one message
                     let mut message = Vec::new();
 
+                    let mut furthest_capture = -1isize;
+
                     // Match on each channel
                     for (i, matcher) in config.matchers.iter().enumerate() {
-                        if let Some(captures) = matcher.captures(&str) {
-                            log::trace!("Capture was: {}", &captures[1]);
+                        let mut captures = matcher.capture_locations();
+
+                        for matches in matcher.find_iter(&working_str) {
+                            // Keep track of the furthest offset to shrink working string
+                            if matches.end() as isize > furthest_capture {
+                                furthest_capture = matches.end() as isize;
+                            }
+
+                            //Read capture at the found spot to avoid polynomial time search
+                            matcher.captures_read_at(&mut captures, &working_str, matches.start());
+                            let bounds = captures.get(1).unwrap();
 
                             // Assume one capture group on each regex, with only a floating point number in it
-                            if let Ok(data) = captures[1].parse::<f64>() {
-                                log::trace!("Read: {} on chan {}", data, i);
-
+                            if let Ok(data) = &working_str[bounds.0..bounds.1].parse::<f64>() {
+                                log::trace!("data: {}", *data);
                                 message.push(Data {
                                     stamp: done_time,
                                     channel: i,
-                                    data,
+                                    data: *data,
                                 });
                             }
                         }
                     }
 
-                    (Some(Message::Data(message)), State::Working(stin, config))
+                    log::trace!("Farthest cap was: {}", furthest_capture);
+
+                    // Trim working string, if there was a match
+                    if furthest_capture != -1 {
+                        let next_str = String::from_utf8_lossy(
+                            &working_str.as_bytes()[furthest_capture as usize..],
+                        );
+                        log::trace!("next string is len: {}", next_str.len());
+                        (
+                            Some(Message::Data(message)),
+                            State::Working(stin, config, next_str.into_owned()),
+                        )
+                    } else {
+                        (
+                            Some(Message::Data(message)),
+                            State::Working(stin, config, working_str),
+                        )
+                    }
                 }
             }
         },
