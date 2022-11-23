@@ -1,6 +1,6 @@
 //! iced based gui interface
 
-use crate::extractor::Data;
+use crate::extractor::{extract_channels, Config, Data};
 use chrono::{DateTime, Utc};
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -16,6 +16,7 @@ use plotters_iced::plotters_backend::DrawingBackend;
 use plotters_iced::{Chart, ChartWidget};
 use std::collections::VecDeque;
 use std::default::Default;
+use std::sync::Arc;
 use std::time::Duration;
 
 const FONT_REGULAR: Font = Font::External {
@@ -30,20 +31,19 @@ const FONT_BOLD: Font = Font::External {
 
 #[derive(Debug)]
 pub enum Message {
-    /// message to update charts
-    Tick,
     /// Data from stdin
-    Data(Data),
+    Data(Vec<Data>),
 }
 
 #[derive(Default)]
 pub struct Flags {
-    pub num_channels: usize,
+    pub extractor_conf: Arc<Config>,
 }
 
 /// Application state
 pub struct State {
     chart: SignalChart,
+    extractor_conf: Arc<Config>,
 }
 
 impl Application for State {
@@ -55,7 +55,8 @@ impl Application for State {
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             Self {
-                chart: SignalChart::new(flags.num_channels),
+                chart: SignalChart::new(flags.extractor_conf.matchers.len()),
+                extractor_conf: flags.extractor_conf,
             },
             Command::none(),
         )
@@ -67,8 +68,7 @@ impl Application for State {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::Tick => {} //TODO this actually prob isnt needed, just update whenever we get new data
-            Message::Data(data) => self.chart.push_data(data),
+            Message::Data(data) => data.into_iter().for_each(|d| self.chart.push_data(d)),
         }
         Command::none()
     }
@@ -92,13 +92,7 @@ impl Application for State {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        const FPS: u64 = 60;
-
-        // TODO add our runtime here
-        Subscription::batch(
-            [iced::time::every(Duration::from_millis(1000 / FPS)).map(|_| Message::Tick)]
-                .into_iter(),
-        )
+        extract_channels(self.extractor_conf.clone())
     }
 }
 
@@ -206,8 +200,8 @@ impl Chart<Message> for SignalChart {
 
         chart
             .configure_mesh()
-            .bold_line_style(BLUE.mix(0.2))
-            .light_line_style(BLUE.mix(0.1))
+            .bold_line_style(BLUE.mix(0.4))
+            .light_line_style(BLUE.mix(0.2))
             .axis_style(ShapeStyle::from(BLUE.mix(0.80)).stroke_width(1))
             .y_labels(10)
             .y_label_style(
@@ -232,7 +226,7 @@ impl Chart<Message> for SignalChart {
                 chart
                     .draw_series(LineSeries::new(
                         channel.iter().map(|x| (x.0.timestamp_millis(), x.1.data)),
-                        PLOT_LINE_COLOR,
+                        PLOT_LINE_COLOR, //TODO change per channel
                     ))
                     .expect("failed to draw chart data");
             }
