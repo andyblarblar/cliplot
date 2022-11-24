@@ -33,6 +33,8 @@ const FONT_BOLD: Font = Font::External {
 pub enum Message {
     /// Data from stdin
     Data(Vec<Data>),
+    /// Stdin was closed
+    Closed,
 }
 
 #[derive(Default)]
@@ -44,6 +46,7 @@ pub struct Flags {
 pub struct State {
     chart: SignalChart,
     extractor_conf: Arc<Config>,
+    stdin_closed: bool,
 }
 
 impl Application for State {
@@ -55,8 +58,12 @@ impl Application for State {
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             Self {
-                chart: SignalChart::new(flags.extractor_conf.matchers.len()),
+                chart: SignalChart::new(
+                    flags.extractor_conf.matchers.len(),
+                    Utc::now().timestamp_millis(),
+                ),
                 extractor_conf: flags.extractor_conf,
+                stdin_closed: false,
             },
             Command::none(),
         )
@@ -69,6 +76,7 @@ impl Application for State {
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::Data(data) => data.into_iter().for_each(|d| self.chart.push_data(d)),
+            Message::Closed => self.stdin_closed = true,
         }
         Command::none()
     }
@@ -92,7 +100,12 @@ impl Application for State {
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
-        extract_channels(self.extractor_conf.clone())
+        // Keep reading until stdin closes, then avoid freezing gui
+        if !self.stdin_closed {
+            extract_channels(self.extractor_conf.clone())
+        } else {
+            Subscription::none()
+        }
     }
 }
 
@@ -102,7 +115,9 @@ struct SignalChart {
     /// Vector of signal channels. Channel numbers are indices
     data_points: Vec<VecDeque<(DateTime<Utc>, Data)>>,
     /// Size of the time domain we display
-    plot_seconds: usize, //TODO make scalable with interface
+    plot_ms: u64, //TODO make scalable with interface
+    /// Start time of graphing in unix epoch
+    start_time_ms: i64,
     // Lazy track plotting info
     latest_reading: DateTime<Utc>,
     highest_reading: f64,
@@ -110,26 +125,26 @@ struct SignalChart {
 }
 
 impl SignalChart {
-    fn new(num_channels: usize) -> Self {
+    fn new(num_channels: usize, start_time_ms: i64) -> Self {
         let data_points = vec![VecDeque::new(); num_channels];
         Self {
             cache: Cache::new(),
             data_points,
             latest_reading: Default::default(),
             highest_reading: 1.0,
-            lowest_reading: -1.0,
-            plot_seconds: 5,
+            lowest_reading: 0.0,
+            plot_ms: 5000,
+            start_time_ms,
         }
     }
 
     /// Pushes data into its appropriate queue, then trims the old data.
     fn push_data(&mut self, value: Data) {
-        let time = value.stamp;
-        let cur_ms = time.timestamp_millis();
-        let limit = Duration::from_secs(self.plot_seconds as u64);
+        let cur_ms = value.stamp.timestamp_millis();
+        let limit = Duration::from_millis(self.plot_ms);
 
-        self.data_points[value.channel].push_front((time, value));
-        // Trim old data
+        self.data_points[value.channel].push_front((value.stamp, value));
+        // Trim data if it is older than the timespan shown on the graph
         loop {
             if let Some((time, _)) = self.data_points[value.channel].back() {
                 let diff = Duration::from_millis((cur_ms - time.timestamp_millis()) as u64);
@@ -187,13 +202,14 @@ impl Chart<Message> for SignalChart {
         const PLOT_LINE_COLOR: RGBColor = RGBColor(0, 175, 255);
 
         // Dynamically size the y axis as data comes in, then plot all data in the selected time domain
-        let oldest_time = self.latest_reading - chrono::Duration::seconds(self.plot_seconds as i64);
+        let oldest_time = self.latest_reading - chrono::Duration::milliseconds(self.plot_ms as i64);
         let mut chart = chart
             .x_label_area_size(28)
             .y_label_area_size(28)
             .margin(20)
             .build_cartesian_2d(
-                oldest_time.timestamp_millis()..self.latest_reading.timestamp_millis(),
+                oldest_time.timestamp_millis() - self.start_time_ms
+                    ..self.latest_reading.timestamp_millis() - self.start_time_ms,
                 self.lowest_reading..self.highest_reading,
             )
             .expect("failed to build chart");
@@ -210,6 +226,7 @@ impl Chart<Message> for SignalChart {
                     .color(&BLUE.mix(0.80))
                     .transform(FontTransform::Rotate90),
             )
+            .x_label_formatter(&|d| format!("{}ms", d))
             .x_labels(10)
             .x_label_style(
                 ("sans-serif", 15)
@@ -225,7 +242,9 @@ impl Chart<Message> for SignalChart {
             if !channel.is_empty() {
                 chart
                     .draw_series(LineSeries::new(
-                        channel.iter().map(|x| (x.0.timestamp_millis(), x.1.data)),
+                        channel
+                            .iter()
+                            .map(|x| (x.0.timestamp_millis() - self.start_time_ms, x.1.data)),
                         PLOT_LINE_COLOR, //TODO change per channel
                     ))
                     .expect("failed to draw chart data");

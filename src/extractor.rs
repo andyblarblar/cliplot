@@ -1,5 +1,6 @@
 //! Stdin data extractor runtime
 
+use crate::extractor::State::Closed;
 use crate::Message;
 use chrono::{DateTime, Utc};
 use iced::Subscription;
@@ -43,6 +44,7 @@ impl Default for Config {
 enum State {
     Starting(Arc<Config>),
     Working(Stdin, Arc<Config>, String),
+    Closed,
 }
 
 /// Subscription that extracts data from stdin using the configured Regex matchers.
@@ -61,8 +63,11 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                 }
                 State::Working(mut stin, config, mut working_str) => {
                     // Read chunks from stdin
-                    let mut buff = [0u8; 512];
-                    stin.read_exact(&mut buff).await.unwrap();
+                    let mut buff = [0u8; 64];
+                    if stin.read_exact(&mut buff).await.is_err() {
+                        // Signal stdin was closed to stop from freezing gui
+                        return (Some(Message::Closed), Closed);
+                    }
 
                     let done_time = Utc::now();
 
@@ -119,6 +124,7 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                         )
                     }
                 }
+                Closed => (Some(Message::Closed), Closed),
             }
         },
     )
