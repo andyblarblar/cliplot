@@ -34,7 +34,7 @@ impl Default for Config {
     /// Crates a config with a single channel, where that single channel just matches a float deliminated
     /// by $.
     fn default() -> Self {
-        let matchers = vec![Regex::new(r"\$(\d*)\$").unwrap()];
+        let matchers = vec![Regex::new(r"\$([+|-]?\d*\.?\d*)\$").unwrap()];
         Config { matchers }
     }
 }
@@ -101,14 +101,13 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                         }
                     }
 
-                    log::trace!("Farthest cap was: {}", furthest_capture);
-
-                    // Trim working string, if there was a match
+                    // Remove working string data from before the furthest match, since it's impossible for us to miss
+                    // a match since its already been checked. It's still possible for part of a match to be
+                    // present after this last match, so keep it around until we match again.
                     if furthest_capture != -1 {
                         let next_str = String::from_utf8_lossy(
                             &working_str.as_bytes()[furthest_capture as usize..],
                         );
-                        log::trace!("next string is len: {}", next_str.len());
                         (
                             Some(Message::Data(message)),
                             State::Working(stin, config, next_str.into_owned()),
