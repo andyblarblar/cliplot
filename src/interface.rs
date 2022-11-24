@@ -199,7 +199,8 @@ impl Chart<Message> for SignalChart {
     fn build_chart<DB: DrawingBackend>(&self, _state: &Self::State, mut chart: ChartBuilder<DB>) {
         use plotters::{prelude::*, style::Color};
 
-        const PLOT_LINE_COLOR: RGBColor = RGBColor(0, 175, 255);
+        const PLOT_LINE_COLOR1: RGBColor = RGBColor(0, 175, 255);
+        const PLOT_LINE_COLOR2: RGBColor = RGBColor(175, 0, 255);
 
         // Dynamically size the y axis as data comes in, then plot all data in the selected time domain
         let oldest_time = self.latest_reading - chrono::Duration::milliseconds(self.plot_ms as i64);
@@ -238,14 +239,18 @@ impl Chart<Message> for SignalChart {
             .expect("failed to draw chart mesh");
 
         // Plot each channel
-        for channel in self.data_points.iter() {
+        for (i, channel) in self.data_points.iter().enumerate() {
             if !channel.is_empty() {
                 chart
                     .draw_series(LineSeries::new(
                         channel
                             .iter()
                             .map(|x| (x.0.timestamp_millis() - self.start_time_ms, x.1.data)),
-                        PLOT_LINE_COLOR, //TODO change per channel
+                        if i % 2 == 0 {
+                            PLOT_LINE_COLOR1
+                        } else {
+                            PLOT_LINE_COLOR2
+                        }, //TODO change per channel
                     ))
                     .expect("failed to draw chart data");
             }
