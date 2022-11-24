@@ -62,8 +62,8 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                     (None, State::Working(stin, arc_config, String::new()))
                 }
                 State::Working(mut stin, config, mut working_str) => {
-                    // Read chunks from stdin
-                    let mut buff = [0u8; 64];
+                    // Read chunks from stdin, this needs to be small else it is actually much slower due to regex scaling with input size
+                    let mut buff = [0u8; 4];
                     if stin.read_exact(&mut buff).await.is_err() {
                         // Signal stdin was closed to stop from freezing gui
                         return (Some(Message::Closed), Closed);
