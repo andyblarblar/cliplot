@@ -36,7 +36,7 @@ impl Default for Config {
     /// by $.
     fn default() -> Self {
         let matchers = vec![Regex::new(r"\$([+|-]?\d*\.?\d*)\$").unwrap()];
-        Config { matchers }
+        Self { matchers }
     }
 }
 
@@ -110,19 +110,13 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                     // a match since its already been checked. It's still possible for part of a match to be
                     // present after this last match, so keep it around until we match again.
                     if furthest_capture != -1 {
-                        let next_str = String::from_utf8_lossy(
-                            &working_str.as_bytes()[furthest_capture as usize..],
-                        );
-                        (
-                            Some(Message::Data(message)),
-                            State::Working(stin, config, next_str.into_owned()),
-                        )
-                    } else {
-                        (
-                            Some(Message::Data(message)),
-                            State::Working(stin, config, working_str),
-                        )
+                        working_str.drain(0..furthest_capture as usize);
                     }
+
+                    (
+                        Some(Message::Data(message)),
+                        State::Working(stin, config, working_str),
+                    )
                 }
                 Closed => (Some(Message::Closed), Closed),
             }

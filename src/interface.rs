@@ -101,10 +101,10 @@ impl Application for State {
 
     fn subscription(&self) -> Subscription<Self::Message> {
         // Keep reading until stdin closes, then avoid freezing gui
-        if !self.stdin_closed {
-            extract_channels(self.extractor_conf.clone())
-        } else {
+        if self.stdin_closed {
             Subscription::none()
+        } else {
+            extract_channels(self.extractor_conf.clone())
         }
     }
 }
@@ -130,7 +130,7 @@ impl SignalChart {
         Self {
             cache: Cache::new(),
             data_points,
-            latest_reading: Default::default(),
+            latest_reading: chrono::DateTime::default(),
             highest_reading: 1.0,
             lowest_reading: 0.0,
             plot_ms: 5000,
@@ -164,9 +164,9 @@ impl SignalChart {
 
         // Update bounds
         if value.data > self.highest_reading {
-            self.highest_reading = value.data
+            self.highest_reading = value.data;
         } else if value.data < self.lowest_reading {
-            self.lowest_reading = value.data
+            self.lowest_reading = value.data;
         }
     }
 

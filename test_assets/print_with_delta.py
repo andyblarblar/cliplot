@@ -16,7 +16,7 @@ while True:
                 print(f"${line.strip()}$")
                 chan = not chan
             else:
-                print(f"%{line.strip()}%")
+                print(f"%{line.strip()}% Making sad :(")
                 chan = not chan
             sys.stdout.flush()
             time.sleep(delta_s)

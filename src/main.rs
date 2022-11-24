@@ -29,13 +29,9 @@ fn main() {
         default_font: Some(include_bytes!("../fonts/notosans-regular.ttf")),
         flags: Flags {
             extractor_conf: Arc::new(Config {
-                matchers: if let Some(r) = args.regexes {
-                    r.iter()
+                matchers: args.regexes.map_or_else(|| Config::default().matchers, |r| r.iter()
                         .map(|s| Regex::new(s).expect("Invalid Regex!"))
-                        .collect()
-                } else {
-                    Config::default().matchers
-                },
+                        .collect()),
             }),
         },
         ..Settings::default()
