@@ -22,6 +22,7 @@ fn main() {
     .unwrap();
 
     log::debug!("Regex Vec: {:?}", args.regexes);
+    log::debug!("csv path: {:?}", args.csv);
 
     log::info!("Creating gui...");
 
@@ -38,6 +39,7 @@ fn main() {
                             .collect()
                     },
                 ),
+                csv: args.csv,
             }),
         },
         ..Settings::default()
