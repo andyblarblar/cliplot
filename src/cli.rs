@@ -1,6 +1,7 @@
 //! Command line arguments
 
 use clap::Parser;
+use clap_verbosity_flag::Verbosity;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -12,5 +13,8 @@ pub struct Args {
     /// a string convertable to a f64. Deliminators (such as the `$` above) are necessary to avoid
     /// numbers being cut across buffer breaks.
     #[arg(short, long)]
-    pub regexes: Option<Vec<String>>
+    pub regexes: Option<Vec<String>>,
+
+    #[command(flatten)]
+    pub verbose: Verbosity,
 }

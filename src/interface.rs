@@ -2,6 +2,7 @@
 
 use crate::extractor::{extract_channels, Config, Data};
 use chrono::{DateTime, Utc};
+use iced::widget::{row, Slider, Text, TextInput};
 use iced::{
     alignment::{Horizontal, Vertical},
     executor,
@@ -29,12 +30,14 @@ const FONT_BOLD: Font = Font::External {
     bytes: include_bytes!("../fonts/notosans-bold.ttf"),
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Message {
     /// Data from stdin
     Data(Vec<Data>),
     /// Stdin was closed
     Closed,
+    /// Slider changed
+    SliderChanged(u64),
 }
 
 #[derive(Default)]
@@ -77,6 +80,8 @@ impl Application for State {
         match message {
             Message::Data(data) => data.into_iter().for_each(|d| self.chart.push_data(d)),
             Message::Closed => self.stdin_closed = true,
+            // Scale the time domain using the slider or text inputs
+            Message::SliderChanged(v) => self.chart.set_time_domain(v),
         }
         Command::none()
     }
@@ -84,13 +89,39 @@ impl Application for State {
     fn view(&self) -> Element<'_, Self::Message> {
         let content = Column::new()
             .spacing(20)
-            .align_items(Alignment::Start)
+            .align_items(Alignment::Center)
             .width(Length::Fill)
             .height(Length::Fill)
-            .push(self.chart.view());
+            .push(self.chart.view())
+            .push(row![
+                Text::new("Max interval: ").size(30),
+                TextInput::new(
+                    //TODO use on_submit here when that gets fixed
+                    "5000ms",
+                    &(self.chart.get_time_domain().to_string() + "ms"),
+                    |v| {
+                        Message::SliderChanged(
+                            v.strip_suffix("ms")
+                                .and_then(|s| s.parse::<u64>().ok())
+                                .map(|v| {
+                                    if !(0..i32::MAX as u64).contains(&v) {
+                                        5000
+                                    } else {
+                                        v
+                                    }
+                                })
+                                .unwrap_or(5000),
+                        )
+                    },
+                )
+            ])
+            .push(Slider::new(
+                10..=20000,
+                self.chart.get_time_domain() as i32,
+                |v| Message::SliderChanged(v as u64),
+            ));
 
         Container::new(content)
-            //.style(style::Container)
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(5)
@@ -115,7 +146,7 @@ struct SignalChart {
     /// Vector of signal channels. Channel numbers are indices
     data_points: Vec<VecDeque<(DateTime<Utc>, Data)>>,
     /// Size of the time domain we display
-    plot_ms: u64, //TODO make scalable with interface
+    plot_ms: u64,
     /// Start time of graphing in unix epoch
     start_time_ms: i64,
     // Lazy track plotting info
@@ -138,17 +169,28 @@ impl SignalChart {
         }
     }
 
+    /// Updates the scale of the time domain, ie. how much data is on screen at once.
+    fn set_time_domain(&mut self, time_ms: u64) {
+        self.plot_ms = time_ms;
+    }
+
+    const fn get_time_domain(&self) -> u64 {
+        self.plot_ms
+    }
+
     /// Pushes data into its appropriate queue, then trims the old data.
     fn push_data(&mut self, value: Data) {
         let cur_ms = value.stamp.timestamp_millis();
+        const LIMIT: Duration = Duration::from_millis(20_000);
         let limit = Duration::from_millis(self.plot_ms);
 
         self.data_points[value.channel].push_front((value.stamp, value));
-        // Trim data if it is older than the timespan shown on the graph
+        // Trim data if it is older than the largest timespan visible on the graph
         loop {
             if let Some((time, _)) = self.data_points[value.channel].back() {
                 let diff = Duration::from_millis((cur_ms - time.timestamp_millis()) as u64);
-                if diff > limit {
+                // Cut off at 20s by default, but allow for greater spans if one is selected
+                if LIMIT > limit && diff > LIMIT || LIMIT < limit && diff > limit {
                     self.data_points[value.channel].pop_back();
                     continue;
                 }
@@ -162,8 +204,11 @@ impl SignalChart {
             self.latest_reading = value.stamp;
         }
 
-        // Update bounds
-        if value.data > self.highest_reading {
+        // First reading 'zeros' the graph, later readings rescale the y axis
+        if self.data_points[value.channel].len() == 1 {
+            self.lowest_reading = value.data;
+            self.highest_reading = value.data;
+        } else if value.data > self.highest_reading {
             self.highest_reading = value.data;
         } else if value.data < self.lowest_reading {
             self.lowest_reading = value.data;
@@ -233,7 +278,7 @@ impl Chart<Message> for SignalChart {
                 ("sans-serif", 15)
                     .into_font()
                     .color(&BLUE.mix(0.80))
-                    .transform(FontTransform::Rotate90),
+                    .transform(FontTransform::Rotate90), //TODO add legend with colors
             )
             .draw()
             .expect("failed to draw chart mesh");

@@ -65,6 +65,7 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                     // Read chunks from stdin, this needs to be small else it is actually much slower due to regex scaling with input size
                     let mut buff = [0u8; 4];
                     if stin.read_exact(&mut buff).await.is_err() {
+                        log::error!("Stdin Closed");
                         // Signal stdin was closed to stop from freezing gui
                         return (Some(Message::Closed), Closed);
                     }
@@ -105,6 +106,8 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                             }
                         }
                     }
+
+                    //TODO write to CSV from messages vec here
 
                     // Remove working string data from before the furthest match, since it's impossible for us to miss
                     // a match since its already been checked. It's still possible for part of a match to be

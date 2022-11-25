@@ -6,32 +6,38 @@ use crate::extractor::Config;
 use crate::interface::*;
 use clap::Parser;
 use iced::{Application, Settings};
-use log::LevelFilter;
 use regex::Regex;
 use simplelog::ConfigBuilder;
 use std::sync::Arc;
 
 fn main() {
+    let args = cli::Args::parse();
+
     simplelog::SimpleLogger::init(
-        LevelFilter::Trace,
+        args.verbose.log_level_filter(),
         ConfigBuilder::new()
             .add_filter_allow("cliplot".to_string())
             .build(),
     )
     .unwrap();
 
-    let args = cli::Args::parse();
+    log::debug!("Regex Vec: {:?}", args.regexes);
 
-    log::trace!("Regex Vec: {:?}", args.regexes);
+    log::info!("Creating gui...");
 
     State::run(Settings {
         antialiasing: true,
         default_font: Some(include_bytes!("../fonts/notosans-regular.ttf")),
         flags: Flags {
             extractor_conf: Arc::new(Config {
-                matchers: args.regexes.map_or_else(|| Config::default().matchers, |r| r.iter()
-                        .map(|s| Regex::new(s).expect("Invalid Regex!"))
-                        .collect()),
+                matchers: args.regexes.map_or_else(
+                    || Config::default().matchers,
+                    |r| {
+                        r.iter()
+                            .map(|s| Regex::new(s).expect("Invalid Regex!"))
+                            .collect()
+                    },
+                ),
             }),
         },
         ..Settings::default()
