@@ -73,13 +73,7 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                             .expect("CSV path error!");
 
                         csv.write_record(
-                            std::iter::once("Timestamp".to_string()).chain(
-                                arc_config
-                                    .matchers
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, _)| i.to_string()),
-                            ),
+                            &["Timestamp".to_string(), "Data".to_string(), "Channel".to_string()]
                         )
                         .expect("CSV write error!");
 
