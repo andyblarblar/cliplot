@@ -1,11 +1,12 @@
 mod cli;
+mod color_table;
 mod extractor;
 mod interface;
-mod color_table;
 
 use crate::extractor::Config;
 use crate::interface::*;
 use clap::Parser;
+use iced::window::Icon;
 use iced::{Application, Settings};
 use regex::Regex;
 use simplelog::ConfigBuilder;
@@ -42,6 +43,13 @@ fn main() {
                 ),
                 csv: args.csv,
             }),
+        },
+        window: iced::window::Settings {
+            icon: Some(
+                Icon::from_file_data(include_bytes!("../icons/icon.bmp"), None)
+                    .expect("Failed to load icon!"),
+            ),
+            ..Default::default()
         },
         ..Settings::default()
     })
