@@ -2,6 +2,13 @@
 name = "cliplot"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["Andrew Ealovega <Andrew@Ealovega.dev>"]
+description = "Live-plots data from the command line"
+documentation = "https://github.com/andyblarblar/cliplot"
+repository = "https://github.com/andyblarblar/cliplot"
+homepage = "https://github.com/andyblarblar/cliplot"
+readme = "README.md"
 
 [dependencies]
 plotters-iced = "^0.4"
