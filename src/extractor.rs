@@ -72,9 +72,11 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                             .from_path(&path)
                             .expect("CSV path error!");
 
-                        csv.write_record(
-                            &["Timestamp".to_string(), "Data".to_string(), "Channel".to_string()]
-                        )
+                        csv.write_record(&[
+                            "Timestamp".to_string(),
+                            "Data".to_string(),
+                            "Channel".to_string(),
+                        ])
                         .expect("CSV write error!");
 
                         csv
@@ -129,13 +131,13 @@ pub fn extract_channels(config: Arc<Config>) -> Subscription<Message> {
                                 furthest_capture = matches.end() as isize;
                             }
 
-                            //Read capture at the found spot to avoid polynomial time search
+                            //Read capture at the found spot to avoid searching all over again
                             matcher.captures_read_at(&mut captures, &working_str, matches.start());
                             let bounds = captures.get(1).unwrap();
 
                             // Assume one capture group on each regex, with only a floating point number in it
                             if let Ok(data) = &working_str[bounds.0..bounds.1].parse::<f64>() {
-                                log::trace!("data: {}", *data);
+                                log::trace!("data: {} channel: {i}", *data);
                                 message.push(Data {
                                     stamp: done_time,
                                     channel: i,

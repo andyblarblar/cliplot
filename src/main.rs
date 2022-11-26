@@ -1,6 +1,7 @@
 mod cli;
 mod extractor;
 mod interface;
+mod color_table;
 
 use crate::extractor::Config;
 use crate::interface::*;

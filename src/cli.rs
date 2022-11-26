@@ -17,7 +17,7 @@ pub struct Args {
     pub regexes: Option<Vec<String>>,
     /// Writes read data into a CSV file at path if set.
     ///
-    /// CSV file will contain the timestamp of each reading, followed by the data and finally the channel number.
+    /// The CSV file will contain the timestamp of each reading in ms, followed by the data and finally the channel number.
     #[arg(short, long)]
     pub csv: Option<PathBuf>,
     #[command(flatten)]

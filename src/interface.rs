@@ -1,5 +1,6 @@
 //! iced based gui interface
 
+use crate::color_table::get_color_for_channels;
 use crate::extractor::{extract_channels, Config, Data};
 use chrono::{DateTime, Utc};
 use iced::widget::{row, Slider, Text, TextInput};
@@ -13,6 +14,7 @@ use iced::{
     Alignment, Application, Command, Element, Font, Length, Size, Subscription, Theme,
 };
 use plotters::prelude::ChartBuilder;
+use plotters::style::RGBColor;
 use plotters_iced::plotters_backend::DrawingBackend;
 use plotters_iced::{Chart, ChartWidget};
 use std::collections::VecDeque;
@@ -143,6 +145,8 @@ impl Application for State {
 /// Widget that displays our chart
 struct SignalChart {
     cache: Cache,
+    /// Color for each channel
+    colors: Vec<RGBColor>,
     /// Vector of signal channels. Channel numbers are indices
     data_points: Vec<VecDeque<(DateTime<Utc>, Data)>>,
     /// Size of the time domain we display
@@ -160,6 +164,7 @@ impl SignalChart {
         let data_points = vec![VecDeque::new(); num_channels];
         Self {
             cache: Cache::new(),
+            colors: get_color_for_channels(data_points.len()),
             data_points,
             latest_reading: chrono::DateTime::default(),
             highest_reading: 1.0,
@@ -244,11 +249,10 @@ impl Chart<Message> for SignalChart {
     fn build_chart<DB: DrawingBackend>(&self, _state: &Self::State, mut chart: ChartBuilder<DB>) {
         use plotters::{prelude::*, style::Color};
 
-        const PLOT_LINE_COLOR1: RGBColor = RGBColor(0, 175, 255);
-        const PLOT_LINE_COLOR2: RGBColor = RGBColor(175, 0, 255);
-
         // Dynamically size the y axis as data comes in, then plot all data in the selected time domain
         let oldest_time = self.latest_reading - chrono::Duration::milliseconds(self.plot_ms as i64);
+
+        // Configure context
         let mut chart = chart
             .x_label_area_size(28)
             .y_label_area_size(28)
@@ -260,6 +264,7 @@ impl Chart<Message> for SignalChart {
             )
             .expect("failed to build chart");
 
+        // Draw grid
         chart
             .configure_mesh()
             .bold_line_style(BLUE.mix(0.4))
@@ -278,7 +283,7 @@ impl Chart<Message> for SignalChart {
                 ("sans-serif", 15)
                     .into_font()
                     .color(&BLUE.mix(0.80))
-                    .transform(FontTransform::Rotate90), //TODO add legend with colors
+                    .transform(FontTransform::Rotate90),
             )
             .draw()
             .expect("failed to draw chart mesh");
@@ -286,20 +291,30 @@ impl Chart<Message> for SignalChart {
         // Plot each channel
         for (i, channel) in self.data_points.iter().enumerate() {
             if !channel.is_empty() {
+                let color = self.colors[i];
+
                 chart
                     .draw_series(LineSeries::new(
                         channel
                             .iter()
+                            .filter(|(t, _)| *t > oldest_time) //Only plot in bounds
                             .map(|x| (x.0.timestamp_millis() - self.start_time_ms, x.1.data)),
-                        if i % 2 == 0 {
-                            PLOT_LINE_COLOR1
-                        } else {
-                            PLOT_LINE_COLOR2
-                        }, //TODO change per channel
+                        color,
                     ))
-                    .expect("failed to draw chart data");
+                    .expect("failed to draw chart data")
+                    .label(format!("channel {}", i))
+                    .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color));
             }
         }
+
+        // Draw legend
+        chart
+            .configure_series_labels()
+            .background_style(WHITE.mix(0.8))
+            .border_style(BLACK)
+            .position(SeriesLabelPosition::UpperRight)
+            .draw()
+            .expect("Failed to draw legend!");
     }
 
     #[inline]
