@@ -59,7 +59,7 @@ Plots data from an input stream, parsing for `\$([+|-]?\d*\.?\d*)\$` (a float su
 ```shell
  python3 print_with_delta.py 0.0032 | cliplot -r '\$([+|-]?\d*\.?\d*)\$' -r '%([+|-]?\d*\.?\d*)%' -c test.csv
 ```
-Plots data from a [python script](test_assets/print_with_delta.py), with channel 0 eliminated by $$ and channel 1 eliminated
+Plots data from a [python script](test_assets/print_with_delta.py), with channel 0 deliminated by $$ and channel 1 deliminated
 by %%. Also log this data to a CSV file called test.csv.
 
 ## Installation
