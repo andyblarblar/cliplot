@@ -11,6 +11,8 @@ homepage = "https://github.com/andyblarblar/cliplot"
 readme = "README.md"
 categories = ["command-line-utilities", "visualization"]
 
+exclude = ["docs"]
+
 [dependencies]
 plotters-iced = "^0.4"
 plotters = "^0.3"
