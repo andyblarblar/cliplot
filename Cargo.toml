@@ -9,6 +9,7 @@ documentation = "https://github.com/andyblarblar/cliplot"
 repository = "https://github.com/andyblarblar/cliplot"
 homepage = "https://github.com/andyblarblar/cliplot"
 readme = "README.md"
+categories = ["command-line-utilities", "visualization"]
 
 [dependencies]
 plotters-iced = "^0.4"
