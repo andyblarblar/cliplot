@@ -3,7 +3,6 @@ name = "cliplot"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-license-file = "LICENSE"
 authors = ["Andrew Ealovega <Andrew@Ealovega.dev>"]
 description = "Live-plots data from the command line"
 documentation = "https://github.com/andyblarblar/cliplot"
